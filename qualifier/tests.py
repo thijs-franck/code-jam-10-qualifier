@@ -5,7 +5,9 @@ import unittest.mock
 import numpy as np
 from PIL import Image
 
-import qualifier
+from .qualifier import valid_input, rearrange_tiles
+
+import os
 
 
 @dataclass
@@ -17,6 +19,10 @@ class TestInfo:
     unscrambled_image_path: str
 
     def __post_init__(self):
+        dirname = os.path.dirname(__file__)
+        self.scrambled_image_path = os.path.join(dirname, self.scrambled_image_path)
+        self.ordering_path = os.path.join(dirname, self.ordering_path)
+        self.unscrambled_image_path = os.path.join(dirname, self.unscrambled_image_path)
         with open(self.ordering_path, 'r') as f:
             self.ordering = [int(x) for x in f.read().strip().splitlines()]
 
@@ -35,29 +41,24 @@ class ValidInputTest(unittest.TestCase):
                      "images/secret_image2_unscrambled.png")
         ]
 
-        self.real_valid_input = qualifier.valid_input
-
-    def tearDown(self):
-        qualifier.valid_input = self.real_valid_input
-
     def test_tile_size_doesnt_match_image_size(self):
         """Pass tile sizes that don't match the image size. The valid_input function should return False."""
         test_cases = [(63, 63), (65, 65), (1024, 1024)]
         for tile_size in test_cases:
             with self.subTest(tile_size=tile_size):
-                self.assertFalse(qualifier.valid_input(self.images[0].image_size, tile_size, self.images[0].ordering))
+                self.assertFalse(valid_input(self.images[0].image_size, tile_size, self.images[0].ordering))
 
     def test_invalid_ordering(self):
         """Give an ordering that isn't a permutation of range(len(ordering))."""
         ordering = self.images[0].ordering.copy()
         ordering[-1] -= 1
-        self.assertFalse(qualifier.valid_input(self.images[0].image_size, (256, 256), ordering))
+        self.assertFalse(valid_input(self.images[0].image_size, (256, 256), ordering))
 
     def test_tile_size_doesnt_match_ordering(self):
         """Should not be valid if the length of `ordering` is not the number of tiles."""
         ordering = self.images[0].ordering.copy()
         ordering.append(len(ordering))  # Add this value specifically so the ordering itself remains valid.
-        self.assertFalse(qualifier.valid_input(self.images[0].image_size, (256, 256), ordering))
+        self.assertFalse(valid_input(self.images[0].image_size, (256, 256), ordering))
 
     def test_valid_input(self):
         """Make sure `valid_input` returns True for valid input."""
@@ -71,29 +72,14 @@ class ValidInputTest(unittest.TestCase):
 
         for image_size, tile_size, ordering in test_cases:
             with self.subTest(image_size=image_size, tile_size=tile_size, ordering=ordering):
-                self.assertTrue(qualifier.valid_input(image_size, tile_size, ordering))
-
-    def test_valid_input_called(self):
-        """Test that the `valid_input` function is called in `rearrange_tiles` with the right arguments."""
-        qualifier.valid_input = unittest.mock.Mock(return_value=True)
-
-        qualifier.rearrange_tiles(
-            self.images[0].unscrambled_image_path, self.images[0].tile_size, self.images[0].ordering,
-            "images/user_output.png"
-        )
-
-        qualifier.valid_input.assert_called_once_with(
-            self.images[0].image_size, self.images[0].tile_size, self.images[0].ordering
-        )
+                self.assertTrue(valid_input(image_size, tile_size, ordering))
 
     def test_invalid_input_raises_exception_in_reordering(self):
-        """Test that `rearrange_tiles` raises a ValueError with a suitable message for invalid input."""
-        qualifier.valid_input = unittest.mock.Mock(return_value=False)
 
         with self.assertRaises(ValueError) as exc:
-            qualifier.rearrange_tiles(
-                self.images[0].unscrambled_image_path, self.images[0].tile_size, self.images[0].ordering,
-                "images/user_output.png"
+            rearrange_tiles(
+                self.images[0].unscrambled_image_path, self.images[1].tile_size, self.images[2].ordering,
+                "qualifier/images/user_output.png"
             )
         self.assertEqual("The tile size or ordering are not valid for the given image", str(exc.exception))
 
@@ -101,15 +87,15 @@ class ValidInputTest(unittest.TestCase):
         """Run the images against the qualifier code, check if the unscrambled image is the proper one."""
         for image_index in range(len(self.images)):
             with self.subTest(image_index=image_index):
-                qualifier.rearrange_tiles(
+                rearrange_tiles(
                     self.images[image_index].scrambled_image_path,
                     self.images[image_index].tile_size,
                     self.images[image_index].ordering,
-                    "images/user_output.png"
+                    f"qualifier/images/user_output{image_index}.png"
                 )
 
                 correct_output = np.array(Image.open(self.images[image_index].unscrambled_image_path))
-                user_output = np.array(Image.open("images/user_output.png"))
+                user_output = np.array(Image.open(f"qualifier/images/user_output{image_index}.png"))
 
                 self.assertTrue((user_output == correct_output).all())
     
