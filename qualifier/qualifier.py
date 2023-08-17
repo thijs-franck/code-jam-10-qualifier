@@ -44,24 +44,24 @@ def rearrange_tiles(image_path: str, tile_size: tuple[int, int], ordering: list[
         tile_width, tile_height = tile_size
         tiles_per_row = original_image.width // tile_width
 
-        for position, index in enumerate(ordering):
+        for reordered_index, original_index in enumerate(ordering):
             # Find the top left corner of the segment in the original image
-            image_x = (index % tiles_per_row) * tile_width
-            image_y = (index // tiles_per_row) * tile_height
+            original_x = (original_index % tiles_per_row) * tile_width
+            original_y = (original_index // tiles_per_row) * tile_height
 
             # Calculate the top left corner in the reordered image where the segment should be pasted
-            out_x = (position % tiles_per_row) * tile_width
-            out_y = (position // tiles_per_row) * tile_height
+            reordered_x = (reordered_index % tiles_per_row) * tile_width
+            reordered_y = (reordered_index // tiles_per_row) * tile_height
 
             # Crop the segment out of the original image and paste it into the reordered image
             segment = original_image.crop((
-                image_x,
-                image_y,
-                image_x + tile_width,
-                image_y + tile_height
+                original_x,
+                original_y,
+                original_x + tile_width,
+                original_y + tile_height
             ))
 
-            reordered_image.paste(segment, (out_x, out_y))
+            reordered_image.paste(segment, (reordered_x, reordered_y))
         # END LOOP
 
         reordered_image.save(out_path)
