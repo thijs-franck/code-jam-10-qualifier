@@ -32,35 +32,36 @@ def rearrange_tiles(image_path: str, tile_size: tuple[int, int], ordering: list[
     "The tile size of ordering are not valid for the given image".
     """
 
-    image = Image.open(image_path)
+    with (
+        Image.open(image_path) as original_image,
+        Image.new(original_image.mode, original_image.size) as reordered_image
+    ):
 
-    if not valid_input(image.size, tile_size, ordering):
-        raise ValueError(
-            "The tile size or ordering are not valid for the given image")
+        if not valid_input(original_image.size, tile_size, ordering):
+            raise ValueError(
+                "The tile size or ordering are not valid for the given image")
 
-    out_image = Image.new(image.mode, image.size)
+        tile_width, tile_height = tile_size
+        tiles_per_row = original_image.width // tile_width
 
-    tile_width, tile_height = tile_size
-    tiles_per_row = image.width // tile_width
+        for position, index in enumerate(ordering):
+            # Find the top left corner of the segment in the original image
+            image_x = (index % tiles_per_row) * tile_width
+            image_y = (index // tiles_per_row) * tile_height
 
-    for position, index in enumerate(ordering):
-        # Find the top left corner of the segment in the original image
-        image_x = (index % tiles_per_row) * tile_width
-        image_y = (index // tiles_per_row) * tile_height
+            # Calculate the top left corner in the reordered image where the segment should be pasted
+            out_x = (position % tiles_per_row) * tile_width
+            out_y = (position // tiles_per_row) * tile_height
 
-        # Calculate the top left corner in the output image where the segment should be pasted
-        out_x = (position % tiles_per_row) * tile_width
-        out_y = (position // tiles_per_row) * tile_height
+            # Crop the segment out of the original image and paste it into the reordered image
+            segment = original_image.crop((
+                image_x,
+                image_y,
+                image_x + tile_width,
+                image_y + tile_height
+            ))
 
-        # Crop the segment out of the original image
-        segment = image.crop((
-            image_x,
-            image_y,
-            image_x + tile_width,
-            image_y + tile_height
-        ))
+            reordered_image.paste(segment, (out_x, out_y))
+        # END LOOP
 
-        out_image.paste(segment, (out_x, out_y))
-    # END LOOP
-
-    out_image.save(out_path)
+        reordered_image.save(out_path)
