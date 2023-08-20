@@ -1,4 +1,5 @@
-from PIL import Image
+import cv2
+import numpy as np
 
 
 def valid_input(image_size: tuple[int, int], tile_size: tuple[int, int], ordering: list[int]) -> bool:
@@ -21,47 +22,39 @@ def valid_input(image_size: tuple[int, int], tile_size: tuple[int, int], orderin
 
 
 def rearrange_tiles(image_path: str, tile_size: tuple[int, int], ordering: list[int], out_path: str) -> None:
-    """
-    Rearrange the image.
+    original_image = cv2.imread(image_path)
 
-    The image is given in `image_path`. Split it into tiles of size `tile_size`, and rearrange them by `ordering`.
-    The new image needs to be saved under `out_path`.
+    width, height, channels = original_image.shape
+    tile_width, tile_height = tile_size
 
-    The tile size must divide each image dimension without remainders, and `ordering` must use each input tile exactly
-    once. If these conditions do not hold, raise a ValueError with the message:
-    "The tile size of ordering are not valid for the given image".
-    """
+    tiles_per_column = height // tile_height
+    tiles_per_row = width // tile_width
+    rows, cols = np.divmod(ordering, tiles_per_row)
 
-    with (
-        Image.open(image_path) as original_image,
-        Image.new(original_image.mode, original_image.size) as reordered_image
-    ):
+    # Split the image into an array of tiles
+    tiled_array = (
+        original_image
+        .reshape(
+            tiles_per_column,
+            tile_height,
+            tiles_per_row,
+            tile_width,
+            channels
+        )
+        .swapaxes(1, 2)
+    )
 
-        if not valid_input(original_image.size, tile_size, ordering):
-            raise ValueError(
-                "The tile size or ordering are not valid for the given image")
+    # Using advanced indexing to get rearranged tiles
+    rearranged_tiles = tiled_array[rows, cols].reshape(
+        tiles_per_column,
+        tiles_per_row,
+        tile_height,
+        tile_width,
+        channels,
+    )
 
-        tile_width, tile_height = tile_size
-        tiles_per_row = original_image.width // tile_width
+    # Reshape rearranged_tiles back into a regular image format
+    rearranged_array = rearranged_tiles.swapaxes(1,2).reshape(height, width, channels)
 
-        for reordered_index, original_index in enumerate(ordering):
-            # Find the top left corner of the tile in the original image
-            original_x = (original_index % tiles_per_row) * tile_width
-            original_y = (original_index // tiles_per_row) * tile_height
-
-            # Calculate the top left corner in the reordered image where the tile should be pasted
-            reordered_x = (reordered_index % tiles_per_row) * tile_width
-            reordered_y = (reordered_index // tiles_per_row) * tile_height
-
-            # Crop the tile out of the original image and paste it into the reordered image
-            tile = original_image.crop((
-                original_x,
-                original_y,
-                original_x + tile_width,
-                original_y + tile_height
-            ))
-
-            reordered_image.paste(tile, (reordered_x, reordered_y))
-        # END LOOP
-
-        reordered_image.save(out_path)
+    # Save the rearranged image
+    cv2.imwrite(out_path, rearranged_array)
